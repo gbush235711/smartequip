@@ -3,7 +3,11 @@ A coding sample for SmartEquip
 
 This is a simple example of a challenge/response web service for verifying a human actor.  (The actual challenge as given isn't complex enough to dissuade a bot, but in principle it could be more complex.)
 
-The current version of code uses a symmetric cryptographic key known only to the server in order to optimize for a truly stateless web service.
+After cloning the repository, you can build and run the application from its root directory using the go.bat script.  (This assumes you have Maven and Java 8 configured on your system.)
+
+The server will run on port 8080 by default.  To change this, you can edit the src/main/resources/application.properties file.
+
+The current version of code uses a randomly-generated symmetric cryptographic key known only to the server in order to optimize for a truly stateless web service.
 
 Upon POSTing an empty form to the URL /, the client will receive a JSON response of the form:
 
