@@ -41,33 +41,31 @@ public class ChallengeResponseControllerTest {
 	private String[] requestChallenge() throws Exception {
 		String result = mockMvc.perform(post("/")).andExpect(status().isOk()).andExpect(content().
 			contentType("application/json;charset=UTF-8")).andReturn().getResponse().getContentAsString();
-		Pattern p = Pattern.compile("\"Please sum the numbers (\\d+), (\\d+), (\\d+)\"");
+		Pattern p = Pattern.compile("\\{\"key\":\"(.*)\",\"challenge\":\"(Please sum the numbers (\\d+), (\\d+), (\\d+))\"\\}");
 		Matcher m = p.matcher(result);
 		Assert.assertTrue(m.matches());
-		return new String[] {m.group(0), m.group(1), m.group(2), m.group(3)};
+		return new String[] {m.group(0), m.group(1), m.group(2), m.group(3), m.group(4), m.group(5)};
 	}
 
 	/*
 	 * Give a response to a particular challenge and check that the status matches what we expect.
 	 */
 	private void giveResponse(String[] result, int expectedStatus) throws Exception {
-		String challenge = result[0];
-		challenge = challenge.substring(1, challenge.length() - 1);
-		int sum = Integer.parseInt(result[1]) + Integer.parseInt(result[2]) + Integer.parseInt(result[3]);
+		String key = result[1];
+		String challenge = result[2];
+		int sum = Integer.parseInt(result[3]) + Integer.parseInt(result[4]) + Integer.parseInt(result[5]);
 
-		mockMvc.perform(get("/").param("challenge", challenge).param("response", Integer.toString(sum))).
+		mockMvc.perform(get("/").param("key", key).param("challenge", challenge).param("response", Integer.toString(sum))).
 		    andExpect(status().is(expectedStatus));
 	}
 
 	/**
-	 * Request a challenge, give a successful response, then re-submit the response and confirm failure
-	 * to verify it was removed from the pending responses.
+	 * Request a challenge, give a successful response, then confirm success.
 	 */
 	@Test
 	public void successfulChallenge() throws Exception {
 		String[] result = requestChallenge();
 		giveResponse(result, 200);
-		giveResponse(result, 400);
 	}
 
 	/**
@@ -77,7 +75,7 @@ public class ChallengeResponseControllerTest {
 	@Test
 	public void failChallengeOnSum() throws Exception {
 		String[] result = requestChallenge();
-		result[1] = "99";
+		result[2] = "99";
 		giveResponse(result, 400);
 	}
 
@@ -86,6 +84,6 @@ public class ChallengeResponseControllerTest {
 	 */
 	@Test
 	public void failChallengeOnUnrequested() throws Exception {
-		giveResponse(new String[] {"What is your quest?", "1", "2", "3"}, 400);
+		giveResponse(new String[] {"", "someBadKey", "What is your quest?", "1", "2", "3"}, 400);
 	}
 }

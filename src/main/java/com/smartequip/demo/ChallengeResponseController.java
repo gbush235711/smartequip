@@ -12,69 +12,103 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.json.JSONObject;
 
+import java.security.Key;
+import java.security.SecureRandom;
+import java.util.Base64;
+import java.util.Random;
+import javax.crypto.Cipher;
+import javax.crypto.spec.SecretKeySpec;
+
+
 @RestController
 public class ChallengeResponseController {
-	/*
-	 * Conigure a maximum number of pending responses to help defend against a
-	 * malicious client running us out of memory.
-	 */
-	private static final int MAX_PENDING = 1000;
+    /*
+     * A generator of random numbers for our challenges.  SecureRandom is threadsafe.
+     */
+    private final Random rnd = new SecureRandom();
 
-	/*
-	 * A generator of random numbers for our challenges.  SecureRandom is threadsafe.
-	 */
-	private Random rnd = new SecureRandom();
+    private final Key key = generateRandomKey();
 
-	/*
-	 * Keep a map of pending challenges and expected responses.  Challenges
-	 * will be inactivated after MAX_PENDING is reached.
-	 */
-	private Map<String, String> challenges = new LinkedHashMap<String, String>() {
-		public boolean removeEldestEntry(Map.Entry<String, String> e) {
-			return size() > MAX_PENDING;
-		}
-	};
+    private Key generateRandomKey() {
+        // 128-bit AES key
+        byte[] k = new byte[16];
+        for (int i = 0; i < k.length; i++) {
+            k[i] = (byte) rnd.nextInt();
+        }
+        return new SecretKeySpec(k, "AES");
+    }
 
-	/*
-	 * Randomly generate a number for the challenge.
-	 */
-	private int generateNumber() {
-		return rnd.nextInt(10) + 1;
-	}
+    /*
+     * Encrpyt a string using AES.  Not sure if Key is threadsafe, so synchronized.
+     */
+    private synchronized String encrypt(String s) {
+        try {
+            final Cipher c = Cipher.getInstance("AES");
+            c.init(Cipher.ENCRYPT_MODE, key);
+            final byte[] encValue = c.doFinal(s.getBytes("UTF-8"));
+            return Base64.getUrlEncoder().encodeToString(encValue);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 
-	/**
-	 * Request a challenge from the service.
-	 */
-    @RequestMapping(value="/", method=RequestMethod.POST, produces="application/json")
-    public String requestChallenge() {
-    	int a = generateNumber();
-    	int b = generateNumber();
-    	int c = generateNumber();
-    	String challenge = "Please sum the numbers " + a + ", " + b + ", " + c;
-    	synchronized(challenges) {
-    		challenges.put(challenge, Integer.toString(a + b + c));
-    	}
-    	return JSONObject.quote(challenge);
+    /*
+     * Decrpyt a string using AES.  Not sure if Key is threadsafe, so synchronized.
+     */
+    private synchronized String decrypt(String s) {
+        try {
+            final Cipher c = Cipher.getInstance("AES");
+            c.init(Cipher.DECRYPT_MODE, key);
+            return new String(c.doFinal(Base64.getUrlDecoder().decode(s)), "UTF-8");
+        } catch (Exception ex) {
+            return null;
+        }
+    }
+
+    /*
+     * Randomly generate a number for the challenge.
+     */
+    private int generateNumber() {
+        return rnd.nextInt(10) + 1;
     }
 
     /**
-     * Give a response to a particular challenge from the service.
+     * Request a challenge from the service.  An encoded key and challenge question will
+     * be generated.  The encoded key is salted to prevent creating a dictionary attack for
+     * challenge questions.
+     */
+    @RequestMapping(value="/", method=RequestMethod.POST, produces="application/json")
+    public Challenge requestChallenge() {
+        int a = generateNumber();
+        int b = generateNumber();
+        int c = generateNumber();
+        long salt = rnd.nextLong();
+        String challenge = "Please sum the numbers " + a + ", " + b + ", " + c;
+        String response = Integer.toString(a + b + c);
+        return new Challenge(encrypt(challenge + "|" + response + "|" + salt), challenge);
+    }
+
+    /**
+     * Give a response to a particular challenge from the service.  The client must send
+     * the same key and challenge that he previously received.
+     *
+     * The encrypted key will be decoded using our private key, and the client's response
+     * will be compared to its contents.
      */
     @RequestMapping(value="/", method=RequestMethod.GET, produces="application/json")
-    public ResponseEntity<String> validateResponse(@RequestParam("challenge") String challenge, @RequestParam("response") String response) {
-    	String expectedResponse;
-    	synchronized(challenges) {
-    		expectedResponse = challenges.get(challenge);
-    	}
-    	if (expectedResponse == null || !expectedResponse.equals(response)) {
-    		return new ResponseEntity<>(JSONObject.quote("No"), HttpStatus.BAD_REQUEST);
-    	}
-    	/*
-    	 * On success, remove the pending challenge.
-    	 */
-    	synchronized(challenges) {
-    		challenges.remove(challenge);
-    	}
-    	return new ResponseEntity<>(JSONObject.quote("Yes"), HttpStatus.OK);
+    public ResponseEntity<String> validateResponse(@RequestParam("key") String k, @RequestParam("challenge") String challenge,
+        @RequestParam("response") String response) {
+        String dk = decrypt(k);
+        if (dk != null) {
+            String[] fields = dk.split("\\|");
+            if (fields.length == 3) {
+                String expectedChallenge = fields[0];
+                String expectedResponse = fields[1];
+                if (expectedChallenge.equals(challenge) && expectedResponse.equals(response)) {
+                    return new ResponseEntity<>(JSONObject.quote("Yes"), HttpStatus.OK);
+                }
+            }
+        }
+        return new ResponseEntity<>(JSONObject.quote("No"), HttpStatus.BAD_REQUEST);
     }
 }
