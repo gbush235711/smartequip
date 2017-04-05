@@ -27,6 +27,11 @@ public class ChallengeResponseController {
      */
     private final Random rnd = new SecureRandom();
 
+    /*
+     * A timeout value after which the challenge expires.  (5 minutes)
+     */
+    private final int TIMEOUT = 5 * 60 * 1000;
+
     private final Key key = generateRandomKey();
 
     private Key generateRandomKey() {
@@ -82,10 +87,11 @@ public class ChallengeResponseController {
         int a = generateNumber();
         int b = generateNumber();
         int c = generateNumber();
-        long salt = rnd.nextLong();
+        long timestamp = System.currentTimeMillis();
+        int salt = rnd.nextInt();
         String challenge = "Please sum the numbers " + a + ", " + b + ", " + c;
         String response = Integer.toString(a + b + c);
-        return new Challenge(encrypt(challenge + "|" + response + "|" + salt), challenge);
+        return new Challenge(encrypt(challenge + "|" + response + "|" + timestamp + "|" + salt), challenge);
     }
 
     /**
@@ -101,10 +107,12 @@ public class ChallengeResponseController {
         String dk = decrypt(k);
         if (dk != null) {
             String[] fields = dk.split("\\|");
-            if (fields.length == 3) {
+            if (fields.length == 4) {
                 String expectedChallenge = fields[0];
                 String expectedResponse = fields[1];
-                if (expectedChallenge.equals(challenge) && expectedResponse.equals(response)) {
+                Long timestamp = Long.parseLong(fields[2]);
+                if (expectedChallenge.equals(challenge) && expectedResponse.equals(response) &&
+                    (System.currentTimeMillis() - timestamp < TIMEOUT)) {
                     return new ResponseEntity<>(JSONObject.quote("Yes"), HttpStatus.OK);
                 }
             }
