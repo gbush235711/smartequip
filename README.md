@@ -33,7 +33,7 @@ where *key* and *challenge* are the same as were provided from the server and *r
 
 If the response is correct and timely for the given key and challenge, then the server will respond with a HTTP 200 status and the message "Yes".  Otherwise, it will fail with an HTTP 400 status and the message "No".
 
-The idea behind the POST/GET format is to use REST-like "resource based" semantics, where a POST signals a resource creation and a GET queries the status of a resource.  The nature of the challenge string makes resource semantics a bit awkward here, and the problem is constrained to have all operations mapped to /, but a possible alternate interface would be to have the POST redirect to a URL like /<RandomizedKey>, where the question is visible and then have the GET on a resource like /<RandomizedKey>/<Answer>.  This would feel a bit more resource-y to me, but the idea would basically be the same.
+The idea behind the POST/GET format is to use REST-like "resource based" semantics, where a POST signals a resource creation and a GET queries the status of a resource.  The nature of the challenge string makes resource semantics a bit awkward here, and the problem is constrained to have all operations mapped to /, but a possible alternate interface would be to have the POST redirect to a URL like /RandomizedKey, where the question is visible and then have the GET on a resource like /RandomizedKey/Answer.  This would feel a bit more resource-y to me, but the idea would basically be the same.
 
 This particular implementation is optimized to satisfy the "Safeguard against cheating" and "Stateless" optional requirements.
 
