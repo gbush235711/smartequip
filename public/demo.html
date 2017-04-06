@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>SmartEquip Code Exercise</title>
+</head>
+<body>
+	<form id="form" action="/" method="GET">
+		<table>
+			<tr><td>Key</td><td><input id="key" type="text" name="key" size="120" value=""/><br/></td></tr>
+			<tr><td>Challenge</td><td><input id="challenge" type="text" name="challenge" size="30" value=""/><br/></td></tr>
+			<tr><td>Response</td><td><input type="text" name="response" value=""/><br/></td></tr>
+		</table>
+		<input type="submit"/>
+	</form>
+<script>
+var r = new XMLHttpRequest();
+r.onload = function(e) {
+	var json = JSON.parse(r.responseText);
+	var f = document.getElementById("form").elements;
+	f.namedItem("key").value = json.key;
+	f.namedItem("challenge").value = json.challenge;
+}
+r.open('POST', '/', true);
+r.send(null);
+</script>
+</body>
+</html>
