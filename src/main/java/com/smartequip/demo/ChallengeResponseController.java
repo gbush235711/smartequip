@@ -1,5 +1,6 @@
 package com.smartequip.demo;
 
+import java.io.ByteArrayOutputStream;
 import java.util.Random;
 import java.security.SecureRandom;
 import java.util.Map;
@@ -17,6 +18,7 @@ import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Random;
 import javax.crypto.Cipher;
+import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 
@@ -48,10 +50,18 @@ public class ChallengeResponseController {
      */
     private synchronized String encrypt(String s) {
         try {
-            final Cipher c = Cipher.getInstance("AES");
-            c.init(Cipher.ENCRYPT_MODE, key);
-            final byte[] encValue = c.doFinal(s.getBytes("UTF-8"));
-            return Base64.getUrlEncoder().encodeToString(encValue);
+            final Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            byte[] iv;
+            {
+                int n = c.getBlockSize();
+                iv = new byte[n];
+                rnd.nextBytes(iv);
+            }
+            c.init(Cipher.ENCRYPT_MODE, key, new IvParameterSpec(iv));
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            baos.write(c.getIV());
+            baos.write(c.doFinal(s.getBytes("UTF-8")));
+            return Base64.getUrlEncoder().encodeToString(baos.toByteArray());
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
@@ -62,9 +72,11 @@ public class ChallengeResponseController {
      */
     private synchronized String decrypt(String s) {
         try {
-            final Cipher c = Cipher.getInstance("AES");
-            c.init(Cipher.DECRYPT_MODE, key);
-            return new String(c.doFinal(Base64.getUrlDecoder().decode(s)), "UTF-8");
+            byte[] data = Base64.getUrlDecoder().decode(s);
+            final Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
+            int n = c.getBlockSize();
+            c.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(data, 0, n));
+            return new String(c.doFinal(data, n, data.length - n), "UTF-8");
         } catch (Exception ex) {
             return null;
         }
@@ -88,10 +100,9 @@ public class ChallengeResponseController {
         int b = generateNumber();
         int c = generateNumber();
         long timestamp = System.currentTimeMillis();
-        int salt = rnd.nextInt();
         String challenge = "Please sum the numbers " + a + ", " + b + ", " + c;
         String response = Integer.toString(a + b + c);
-        return new Challenge(encrypt(challenge + "|" + response + "|" + timestamp + "|" + salt), challenge);
+        return new Challenge(encrypt(challenge + "|" + response + "|" + timestamp), challenge);
     }
 
     /**
@@ -107,7 +118,7 @@ public class ChallengeResponseController {
         String dk = decrypt(k);
         if (dk != null) {
             String[] fields = dk.split("\\|");
-            if (fields.length == 4) {
+            if (fields.length == 3) {
                 String expectedChallenge = fields[0];
                 String expectedResponse = fields[1];
                 Long timestamp = Long.parseLong(fields[2]);

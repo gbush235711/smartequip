@@ -25,10 +25,10 @@ The idea behind the POST/GET format is to use REST-like "resource based" semanti
 
 This particular implementation is optimized to satisfy the "Safeguard against cheating" and "Stateless" optional requirements.
 
-When the client requests a challenge, the server will generate one randomly and return it along with an encrypted payload (128-bit AES) containing the challenge, the expected answer, a timestamp when the challenge was generated and a random "salt" value.
+When the client requests a challenge, the server will generate one randomly and return it along with an encrypted payload (128-bit AES/CBC with random IV) containing the random initial value, challenge, the expected answer, and a timestamp when the challenge was generated.
 
-When the client gives his response, the server will decrypt the payload and compare the given challenge and response to its contents, as well as check the response was received within 5 minutes of the challenge.  The salt is discarded.  If all passes, then the server will report success.
+When the client gives his response, the server will decrypt the payload and compare the given challenge and response to its contents, as well as check the response was received within 5 minutes of the challenge.  If all passes, then the server will report success.
 
-This clearly stores no state on the server, but it is also difficult for a client to provide a reponse unless he is actually answering a given challenge.  This is because 1) the client does not know the private key that is used to encrypt the payload and 2) the embedded salt and timestamp counter replay attacks where, for example, a dictionary of all known challenge keys is kept and reused later.
+This clearly stores no state on the server, but it is also difficult for a client to provide a reponse unless he is actually answering a given challenge.  This is because 1) the client does not know the private key that is used to encrypt the payload and 2) the random IV and embedded timestamp counter replay attacks where, for example, a dictionary of all known challenge keys is kept and reused later.
 
 I wouldn't use this demo to actually try to detect bots, but some of the same principles could be potentially be used in a real application.
